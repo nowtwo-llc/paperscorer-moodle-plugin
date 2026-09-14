@@ -56,8 +56,21 @@ Installation
        This key is used to sign tokens sent to PaperScorer and should not be
        changed after the initial application setup.
 
-9. Test your integration: navigate to a course, expand *Course
-   administration*, then click *Launch PaperScorer*!
+9. Connect the site to PaperScorer. Installing the plugin registers a
+   pre-built external service named **PaperScorer** (shortname
+   ``local_paperscorer``) containing every function PaperScorer calls, so
+   there is no function list to assemble by hand:
+
+   a. Under *Site administration* → *General* → *Advanced features*, enable
+      *Enable web services*.
+   b. Under *Server* → *Web services* → *Manage protocols*, enable *REST*.
+   c. Under *Server* → *Web services* → *Manage tokens*, create a token for an
+      administrator (or a manager account that may edit grades in every
+      course PaperScorer will sync) on the **PaperScorer** service.
+   d. Enter the site URL and that token in PaperScorer.
+
+10. Test the launch link: navigate to a course, expand *Course administration*,
+    then click *Launch PaperScorer*.
 
 Note: when installing manually, the plugin directory **must** be named
 ``paperscorer`` (i.e. ``<moodle>/local/paperscorer``). The component name
@@ -77,7 +90,8 @@ Quiz Export
 ===========
 
 PaperScorer can read a Moodle quiz's questions and answer key and import it as
-an assessment. Three API actions support this.
+an assessment. Three actions support this; they are available on both
+transports described below.
 
 ``get_capabilities``
     Reports the plugin version, the Moodle release, and which features this
@@ -96,8 +110,9 @@ an assessment. Three API actions support this.
 
 ``grade_item`` is the quiz activity's own gradebook column — ``id``, ``name``,
 ``min_mark``, ``max_mark``, ``hidden`` — or ``null`` for an ungraded quiz. Push
-scores into that column rather than creating a second manual one beside it, or
-the course total will double-count the assessment.
+scores into that column with ``update_grades`` rather than creating a second
+manual one beside it, or the course total will double-count the assessment.
+Writing to an activity's column records a gradebook override.
 
 Permissions
 -----------
@@ -107,6 +122,15 @@ export additionally requires ``mod/quiz:manage`` on the quiz's module context �
 exporting hands over every correct answer, which is a broader privilege than
 editing a gradebook column, so it is scoped to users who can already see those
 answers in Moodle's own quiz editor.
+
+``list_courses`` returns the courses in which the *target* user holds
+``moodle/grade:edit``. When the caller is looking up another user (a
+service-account token listing a teacher's courses), the caller must hold
+``moodle/grade:edit`` in each course too, so a token never reveals a course it
+could not itself sync.
+
+Grade writes may target a manual grade item or an activity's own column; course
+and category totals are refused. Only manual items may be created or edited.
 
 Supported question types
 ------------------------
@@ -146,25 +170,52 @@ paper:
 Web service transport
 =====================
 
-The same three actions are also published as Moodle web service functions, so
-a caller that already holds a web service token for the site can use them
-without implementing the signed ``api.php`` protocol:
+This is the transport PaperScorer's servers use. Every action is published as
+a Moodle web service function, so a site that installs this plugin needs
+nothing else: no manually assembled service, and no core function list copied
+from a help page.
 
+* ``local_paperscorer_list_courses`` — takes ``userid`` (0 for the token
+  user); the courses that user can sync, each with ``id``, ``label``
+  (full name), ``name`` (short name), ``idnumber`` and ``visible``
+* ``local_paperscorer_get_roster`` — takes ``courseid``; active enrolments
+  with the configured bubble-sheet ``student_id``, name, and ``lms_user_id``,
+  ``lms_email``, ``lms_username`` and ``lms_roles``
+* ``local_paperscorer_list_grade_items`` — takes ``courseid``; the manual
+  grade items
+* ``local_paperscorer_create_update_grade_item`` — takes ``courseid`` and an
+  ``item`` with ``name``, ``min_mark``, ``max_mark`` and an optional ``id``
+* ``local_paperscorer_update_grades`` — takes ``courseid``, ``itemid`` and
+  ``updates``, a list of ``{lms_user_id, mark}``
 * ``local_paperscorer_get_capabilities`` — takes ``courseid``
 * ``local_paperscorer_list_quizzes`` — takes ``courseid``
 * ``local_paperscorer_get_quiz_structure`` — takes ``courseid`` and ``quizid``
 
-Each returns a single ``payload`` value containing the JSON described above.
-The payload is byte-identical to what ``api.php`` returns, because both
+Each returns a single ``payload`` value containing JSON. The payload is
+byte-identical to what ``api.php`` returns for the same action, because both
 transports call the same code.
 
-Installing the plugin registers a pre-built external service named
-**PaperScorer** (shortname ``local_paperscorer``). Enable web services, then
-attach a token to that service; no function list needs assembling by hand.
+The pre-built **PaperScorer** service also bundles the core functions
+PaperScorer's connect and sync flow calls (``core_webservice_get_site_info``,
+``core_user_get_users_by_field``, ``core_enrol_get_users_courses``,
+``core_enrol_get_enrolled_users``, ``core_course_get_courses_by_field``,
+``core_course_get_contents`` and ``mod_assign_save_grade``), so one token on
+that service is sufficient. Moodle records service function names without
+checking they exist, so a core function that an older release lacks is
+harmless; it simply cannot be called there.
 
-Permissions are unchanged: ``moodle/grade:edit`` in the course for all three,
-plus ``mod/quiz:manage`` on the quiz for the export itself. On this transport
-the token identifies a real Moodle user, so those checks apply to that user.
+On this transport the token identifies a real Moodle user, so every permission
+check applies to that user.
+
+Signed transport
+----------------
+
+``api.php`` exposes the same actions through the launch-based protocol: a
+request carries ``ps_key`` (the Moodle user id), ``ps_signature`` and
+``ps_expires``, signed with the per-user key issued in the launch payload. The
+action names are ``list_courses``, ``get_roster``, ``list_grade_items``,
+``create_update_grade_item``, ``update_grades``, ``get_capabilities``,
+``list_quizzes``, ``get_quiz_structure`` and ``selftest``.
 
 
 Development

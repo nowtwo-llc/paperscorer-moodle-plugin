@@ -1,3 +1,23 @@
+2.1.0 (2026-09-14):
+    * Roster, course and gradebook actions are now web service functions too
+      (local_paperscorer_list_courses, _get_roster, _list_grade_items,
+      _create_update_grade_item, _update_grades), so a self-hosted site needs
+      only this plugin. The pre-built "PaperScorer" service bundles them with
+      the core functions PaperScorer's connect and sync flow calls.
+    * New list_courses action on both transports: the courses a user can
+      sync (those where they hold moodle/grade:edit).
+    * Fixed create_update_grade_item rewriting a grade item from another
+      course, or an activity's own column, when given its id. Only manual
+      items in the requested course may be edited now.
+    * Fixed update_grades recording user 0 as the grade modifier on the
+      signed transport; the acting user is recorded.
+    * update_grades refuses course and category totals.
+    * The default instance secret is generated from a cryptographically
+      secure source, and API signatures are compared in constant time.
+    * Wire change on the signed transport: get_roster's lms_user_id is an
+      integer (was a string), and create_update_grade_item no longer echoes
+      the internal moodle_item object.
+
 2.0.0 (2026-09-01):
     * Renamed the plugin from local_akindi to local_paperscorer. This is a
       breaking change: the component, all settings (paperscorer_*), and the

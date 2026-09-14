@@ -69,7 +69,7 @@ Two independent halves, tied together by a two-tier HMAC scheme. Understanding t
 
 **Outbound — `launch.php`** (browser, normal Moodle session, `require_login()`): renders an auto-submitting form POSTing to `$CFG->paperscorer_launch_url`. The signed payload carries the user, the course, `has_edit_grade_capability` (PaperScorer uses it to decide instructor vs. student UI), and `user.key = ps_sign(paperscorer_instance_secret, $USER->id)`. The form signature itself is over `"$expires\n$data_str"` using `paperscorer_secret_key` (the key PaperScorer gave the admin).
 
-**Inbound — `api.php`** (called by PaperScorer's servers): `AJAX_SCRIPT` + `NO_MOODLE_COOKIES`, so there is no Moodle session and **`$USER` is not the acting user**. Authentication is entirely signature-based:
+**Inbound — `api.php`** (the launch-based inbound endpoint): `AJAX_SCRIPT` + `NO_MOODLE_COOKIES`, so there is no Moodle session and **`$USER` is not the acting user**. Authentication is entirely signature-based:
 
 - Request carries `ps_key` (the plain Moodle user id), `ps_signature`, `ps_expires`, `action`.
 - The plugin recomputes `user_key = ps_sign($CFG->paperscorer_instance_secret, ps_key)` and verifies `ps_signature` over `"$expires\n$METHOD\n$action"`, plus `"\n" . <raw request body>` on POST.
@@ -77,25 +77,31 @@ Two independent halves, tied together by a two-tier HMAC scheme. Understanding t
 
 The effective actor is the global `$PS_USER_ID`, not `$USER`. Every action therefore starts with `ps_get_validate_course_id($action)`, which re-checks `moodle/grade:edit` for `$PS_USER_ID` in the course context. **Any new API action must do the same** — skipping it makes the endpoint act as an unchecked super-user.
 
-**Action dispatch**: the `action` query param is JSON containing `name`; `api.php` calls `ps_action_<name>`. Adding an endpoint = adding a function, nothing to register. Current actions: `get_roster`, `list_grade_items`, `create_update_grade_item`, `update_grades`, `selftest`, `get_capabilities`, `list_quizzes`, `get_quiz_structure`.
+**Action dispatch**: the `action` query param is JSON containing `name`; `api.php` calls `ps_action_<name>`. Adding an endpoint = adding a function, nothing to register. Current actions: `list_courses`, `get_roster`, `list_grade_items`, `create_update_grade_item`, `update_grades`, `selftest`, `get_capabilities`, `list_quizzes`, `get_quiz_structure`. Each is a thin wrapper over `synclib.php` or `quizlib.php`; if an action grows logic of its own, the web service transport silently loses it.
 
-Grade writes go only to `itemtype = 'manual'` grade items, via `grade_item::update_final_grade(..., 'paperscorer', ...)`.
+**Grade policy** (enforced in `synclib.php`): `create_update_grade_item` creates manual items and edits only manual items that belong to the requested course. `update_grades` writes via `grade_item::update_final_grade(..., 'paperscorer', ...)` to a manual item or an activity's own column (a gradebook override, which is how a quiz imported from Moodle gets its scores back into the quiz's column); course and category totals are refused. `ps_grade_item_load()` exists because `grade_item`'s constructor returns an *empty* object when its params match nothing, so an unchecked `update()` would rewrite another course's item.
 
-**`common.php`** bootstraps Moodle (`require_once ../../config.php`, i.e. it assumes the `local/paperscorer/` install path) and holds `ps_sign` / `ps_get` / `ps_load_action` / `ps_plugin_version`. Every entry point includes it first.
+**`common.php`** bootstraps Moodle (`require_once ../../config.php`, i.e. it assumes the `local/paperscorer/` install path) and then includes **`helpers.php`**, which holds the pure helpers `ps_sign` / `ps_secure_compare` / `ps_get` / `ps_load_action` / `ps_random_bytes`. Every entry point includes `common.php` first; tests include `helpers.php` directly.
 
 ## Two transports
 
-The plugin exposes the same capabilities twice, and both call the same functions in `quizlib.php` so their payloads cannot drift.
+The plugin exposes the same capabilities twice, and both call the same functions in `synclib.php` and `quizlib.php` so their payloads cannot drift.
 
-**`api.php`** — the signed endpoint (`ps_key` / `ps_signature`), scoped to one Moodle user by a derived key. No Moodle session; `$USER` is not the actor, `$PS_USER_ID` is.
+**`externallib.php` + `db/services.php`** — Moodle web service functions, one per action (`local_paperscorer_list_courses`, `_get_roster`, `_list_grade_items`, `_create_update_grade_item`, `_update_grades`, `_get_capabilities`, `_list_quizzes`, `_get_quiz_structure`). **This is the transport PaperScorer's servers use**: main-app (`PS\Moodle` in the main-app repo) connects with an admin-created wstoken and has no client for the signed protocol. The token *does* establish a session, so `$USER` **is** the acting user — which is why `synclib.php` and `quizlib.php` take the user id as a parameter rather than reading a global.
 
-**`externallib.php` + `db/services.php`** — Moodle web service functions (`local_paperscorer_get_capabilities`, `_list_quizzes`, `_get_quiz_structure`), for callers that already hold a wstoken. Here the token *does* establish a session, so `$USER` **is** the acting user — which is why `quizlib.php` takes the user id as a parameter rather than reading a global.
+The pre-built `PaperScorer` service in `db/services.php` lists the plugin functions **plus the core functions main-app calls** (`core_webservice_get_site_info`, `core_user_get_users_by_field`, `core_enrol_get_users_courses`, `core_enrol_get_enrolled_users`, `core_course_get_courses_by_field`, `core_course_get_contents`, `mod_assign_save_grade`). That list must track main-app's `MoodleUtil::callWebservice` call sites; the point is that a self-hosted site needs only this plugin, with no help-doc function list. Moodle inserts service function names without checking they exist, so listing a function an old Moodle lacks is safe.
+
+**`api.php`** — the signed endpoint (`ps_key` / `ps_signature`), scoped to one Moodle user by a derived key issued at launch. No Moodle session; `$USER` is not the actor, `$PS_USER_ID` is. Kept for launch-based use; it has no caller in main-app today.
 
 Each web service function returns its result as a JSON string in a single `payload` value rather than a declared `external_single_structure`. The quiz payload is polymorphic per question type; restating it in a `_returns()` definition would duplicate a contract that lives in `quizlib.php` with nothing keeping the two in sync.
 
-`externallib.php` uses the legacy global `external_api` class names, correct for a 2.7+ plugin — Moodle 4.2 moved them to `core_external\` but kept the old names undeprecated. A `class_alias` guard at the top of the file covers their eventual removal.
+`externallib.php` uses the legacy global `external_api` class names, correct for a 2.7+ plugin — Moodle 4.2 moved them to `core_external\` but kept the old names undeprecated. The file must **not** unconditionally include `lib/externallib.php`: on 4.2+ that file is a shim that calls `require_phpunit_isolation()`, so any test including it dies unless run in a separate process. Instead, when the legacy names are missing and the namespaced classes exist, alias them; include the shim only on pre-4.2 Moodle where it is the sole source. In production the web service server has already included the shim before the plugin file loads.
 
 Adding or renaming a web service function requires a `$plugin->version` bump; Moodle only re-reads `db/services.php` on upgrade.
+
+## Roster, courses and grades
+
+`synclib.php` holds `ps_course_list`, `ps_roster`, `ps_grade_item_list`, `ps_grade_item_save` and `ps_grades_update`. It does not bootstrap Moodle, takes the acting user id explicitly, and is what both transports call. `ps_course_list($target, $caller)` filters to courses where the target holds `moodle/grade:edit`, and when the caller is a different user (a service-account token looking up a teacher) requires the caller to hold it too, so a token never sees a course it could not sync.
 
 ## Quiz export
 
@@ -126,7 +132,9 @@ Export degrades rather than failing: unsupported qtypes and random slots land in
 Two layers, both dependency-free — do not introduce composer or a `vendor/` directory.
 
 - **`tests/standalone/`** — a hand-rolled assert harness for `classes/quiz_normalizer.php`. Runs with plain `php`, no Moodle. This is where question-mapping behaviour is specified; add cases here first.
-- **`tests/*_test.php`** — Moodle PHPUnit, `@group local_paperscorer`. Covers what genuinely needs a Moodle: slot resolution on the live schema, `question_bank::load_question()` against generated questions, and the assembled payload.
+- **`tests/*_test.php`** — Moodle PHPUnit, `@group local_paperscorer`. Covers what genuinely needs a Moodle: slot resolution on the live schema, `question_bank::load_question()` against generated questions, the assembled payload, the gradebook functions (including the cross-course refusal), and `external_test.php`, which drives the web service functions through `external_api` parameter/return validation as a session user.
+
+For an end-to-end REST check on the dev site, enable web services and REST, mint a token on the `local_paperscorer` service, and call `http://localhost:8090/webservice/rest/server.php` from the **host** (inside the container Moodle redirects to its `wwwroot`). Pass `-g` to curl: the bracketed parameter names (`item[name]`) are otherwise treated as globs and the request silently fails. The dev dataroot was created by a root CLI install and needs `chown -R www-data` before Apache can serve requests.
 
 `testing.php` (the old HTTP-driven fixture endpoint that Akindi's external suite called) was removed in v2.0.0. Its fixtures live in the PHPUnit tests now.
 
