@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `local_paperscorer` — a Moodle *local* plugin that syncs course rosters and grades between Moodle and PaperScorer (paperscorer.com), and exports Moodle quizzes (questions plus answer key) so they can be imported as PaperScorer assessments.
 
-Renamed from `local_akindi` in v2.0.0. That was a clean break with no compatibility fallback: the component, every setting, and the API wire parameters all changed at once, and the calling service deploys in lockstep. Do not add `akindi_*` or `ak_*` shims.
+v2.0.0 renamed the plugin to `local_paperscorer` as a clean break with no compatibility fallback: the component, every setting, and the API wire parameters all changed at once, and the calling service deploys in lockstep. Do not add shims for the pre-2.0 names.
 
 There is no build system, no dependency manager, and no CI. The repo *is* the deployed artifact: its contents are dropped into a Moodle tree.
 
@@ -136,7 +136,7 @@ Two layers, both dependency-free — do not introduce composer or a `vendor/` di
 
 For an end-to-end REST check on the dev site, enable web services and REST, mint a token on the `local_paperscorer` service, and call `http://localhost:8090/webservice/rest/server.php` from the **host** (inside the container Moodle redirects to its `wwwroot`). Pass `-g` to curl: the bracketed parameter names (`item[name]`) are otherwise treated as globs and the request silently fails. The dev dataroot was created by a root CLI install and needs `chown -R www-data` before Apache can serve requests.
 
-`testing.php` (the old HTTP-driven fixture endpoint that Akindi's external suite called) was removed in v2.0.0. Its fixtures live in the PHPUnit tests now.
+`testing.php` (the old HTTP-driven fixture endpoint that the pre-2.0 external test suite called) was removed in v2.0.0. Its fixtures live in the PHPUnit tests now.
 
 ## Style
 

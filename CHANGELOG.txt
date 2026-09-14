@@ -19,10 +19,10 @@
       the internal moodle_item object.
 
 2.0.0 (2026-09-01):
-    * Renamed the plugin from local_akindi to local_paperscorer. This is a
-      breaking change: the component, all settings (paperscorer_*), and the
-      API wire parameters (ps_key, ps_signature, ps_expires) are renamed with
-      no compatibility fallback. The calling service must deploy in lockstep.
+    * Renamed the plugin to local_paperscorer. This is a breaking change:
+      the component, all settings (paperscorer_*), and the API wire
+      parameters (ps_key, ps_signature, ps_expires) are renamed with no
+      compatibility fallback. The calling service must deploy in lockstep.
     * Added quiz export: get_capabilities, list_quizzes, and
       get_quiz_structure actions read a Moodle quiz's questions and answer key.
     * Removed testing.php in favour of PHPUnit tests under tests/.
