@@ -1,0 +1,7 @@
+.DS_Store
+*.log
+# Local Moodle checkouts live in sibling directories (../moodle-instance),
+# never inside the plugin tree; guard against accidental nesting anyway.
+moodle-instance*/
+moodledata/
+vendor/
