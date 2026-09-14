@@ -1,139 +1,187 @@
-PaperScorer's Moodle Plugin
+===========================
+PaperScorer Moodle Plugin
 ===========================
 
-Synchronize course rosters, grades, and quiz content between `PaperScorer`__ and
-Moodle.
+``local_paperscorer`` connects a self-hosted Moodle site to `PaperScorer`__.
+Once installed and connected, PaperScorer can:
 
-Compatible with Moodle versions 2.x, 3.x, 4.x, and 5.x.
+* list a teacher's courses and import their rosters,
+* import a Moodle quiz (questions and answer key) as a PaperScorer assessment,
+* write scores back into the gradebook.
+
+A self-hosted site needs only this plugin. Sites on MoodleCloud, which cannot
+install plugins, follow the separate MoodleCloud setup guide instead.
+
+Compatible with Moodle 2.7 through 5.x.
 
 __ https://paperscorer.com
 
 
-Installation
-============
+Quick start
+===========
 
-1. Receive PaperScorer API Key.
+1. **Get your keys.** Ask your PaperScorer Customer Success Manager for the
+   *Public Key* and *Secret Key* for your site.
 
-   Contact your PaperScorer Customer Success Manager to receive the "Public Key"
-   and "Secret Key". You will need these in step 8 of installation.
+2. **Install the plugin.** Download the latest release zip and, in Moodle, go
+   to *Site administration → Plugins → Install plugins*, upload the zip, and
+   follow the prompts. The plugin folder inside the zip must be named
+   ``paperscorer`` (see `Packaging`_).
 
-2. Download the latest version of the plugin from Github:
-   https://github.com/paperscorer/moodle-local_paperscorer/archive/master.zip
+3. **Configure it.** Go to *Site administration → Plugins → Local plugins →
+   PaperScorer Settings* and fill in the values from the `Settings`_ table
+   below.
 
-3. Login to your Moodle instance, and under the Administration panel, expand
-   *Plugins* and click *Install plugins*.
+4. **Connect the site to PaperScorer.** Installing the plugin registers a
+   ready-made external service named **PaperScorer**. Enable web services and
+   create one token on that service; PaperScorer needs nothing else.
 
-4. Under the *Install plugin from ZIP file* heading, click the *Choose a file…*
-   button.
-
-5. Click *Choose File*, select the zip file downloaded in step 2, then click
-   *Upload this file*.
-
-6. Once the zip file has been uploaded it should appear in the file list below
-   the *Install plugin from ZIP file* heading. Click the *Install plugin from
-   the ZIP file* button.
-
-7. Once the plugin has been validated, click *Continue*.
-
-8. Under the Administration panel, expand *Plugins*, then *Local plugins*, and
-   click *PaperScorer Settings*. Fill in the values appropriate to your
-   installation:
-
-   ``paperscorer_launch_url``
-       | ``https://app.paperscorer.com/api/moodle/launch``
-
-   ``paperscorer_public_key``
-       The public key from step 1.
-
-   ``paperscorer_secret_key``
-       The secret key from step 1.
-
-   ``paperscorer_instance_secret``
-       A secret key you have generated which *should not* be shared with
-       PaperScorer. The default value is generated randomly on each page load
-       and is a suitable default.
-
-       This key is used to sign tokens sent to PaperScorer and should not be
-       changed after the initial application setup.
-
-9. Connect the site to PaperScorer. Installing the plugin registers a
-   pre-built external service named **PaperScorer** (shortname
-   ``local_paperscorer``) containing every function PaperScorer calls, so
-   there is no function list to assemble by hand:
-
-   a. Under *Site administration* → *General* → *Advanced features*, enable
-      *Enable web services*.
-   b. Under *Server* → *Web services* → *Manage protocols*, enable *REST*.
-   c. Under *Server* → *Web services* → *Manage tokens*, create a token for an
-      administrator (or a manager account that may edit grades in every
+   a. *Site administration → General → Advanced features*: turn on
+      **Enable web services**.
+   b. *Site administration → Server → Web services → Manage protocols*:
+      enable **REST**.
+   c. *Site administration → Server → Web services → Manage tokens*: create a
+      token for an administrator (or a manager who can edit grades in every
       course PaperScorer will sync) on the **PaperScorer** service.
-   d. Enter the site URL and that token in PaperScorer.
+   d. In PaperScorer, enter your Moodle site URL and that token.
 
-10. Test the launch link: navigate to a course, expand *Course administration*,
-    then click *Launch PaperScorer*.
-
-Note: when installing manually, the plugin directory **must** be named
-``paperscorer`` (i.e. ``<moodle>/local/paperscorer``). The component name
-``local_paperscorer`` is derived from the path, and ``version.php`` will fail
-validation otherwise.
+5. **Test it.** Open any course, expand *Course administration*, and click
+   **Launch PaperScorer**.
 
 
-Usage Notes
-===========
+Settings
+========
 
-PaperScorer assumes that a student's ``idnumber`` field will be a numeric
-student ID. PaperScorer will still function if it isn't, but the instructor will
-have to manually assign each scanned sheet to a student.
+All settings live under *Site administration → Plugins → Local plugins →
+PaperScorer Settings*.
 
+======================================  =====================================================
+Setting                                 Value
+======================================  =====================================================
+``paperscorer_launch_url``              ``https://app.paperscorer.com/api/moodle/launch``
+``paperscorer_public_key``              The public key from PaperScorer.
+``paperscorer_secret_key``              The secret key from PaperScorer.
+``paperscorer_instance_secret``         A random secret generated for you on first view.
+                                        **Do not share it with PaperScorer, and do not change
+                                        it after setup**: it signs every per-user key the
+                                        plugin issues, and changing it invalidates them all.
+``paperscorer_student_id_field``        Which profile field is the bubble-sheet student ID:
+                                        ``idnumber`` (default), the Moodle user id, or any
+                                        custom profile field. Custom field values are reduced
+                                        to their digits.
+``paperscorer_open_in_new_window``      Open PaperScorer in a new window on launch.
+``paperscorer_enable_student_launch``   Show the launch link to students too, so they can
+                                        reach online assessments from Moodle.
+======================================  =====================================================
 
-Quiz Export
-===========
+PaperScorer expects the student ID to be numeric. If it is not, scanned sheets
+still work, but the instructor has to match each sheet to a student by hand.
 
-PaperScorer can read a Moodle quiz's questions and answer key and import it as
-an assessment. Three actions support this; they are available on both
-transports described below.
-
-``get_capabilities``
-    Reports the plugin version, the Moodle release, and which features this
-    installation supports. Call this first: an older plugin that predates quiz
-    export answers with ``unknown-action``, which is the signal to hide the
-    import option rather than show an error.
-
-``list_quizzes``
-    Every quiz in the course the caller may export, with ``id``, ``cmid``,
-    ``name``, ``sumgrades``, ``question_count`` and ``grade_item``. Quizzes the
-    caller cannot export are omitted rather than listed and refused later.
-
-``get_quiz_structure``
-    Takes ``quiz_id`` and returns the normalized questions, the answer key,
-    per-question ``warnings``, and a ``skipped`` list.
-
-``grade_item`` is the quiz activity's own gradebook column — ``id``, ``name``,
-``min_mark``, ``max_mark``, ``hidden`` — or ``null`` for an ungraded quiz. Push
-scores into that column with ``update_grades`` rather than creating a second
-manual one beside it, or the course total will double-count the assessment.
-Writing to an activity's column records a gradebook override.
 
 Permissions
+===========
+
+The plugin defines no capabilities of its own. It reuses Moodle's:
+
+===========================  ==================================================================
+Capability                   Grants
+===========================  ==================================================================
+``moodle/grade:edit``        Every roster and grade action in that course, and the launch
+in the course                link for instructors. ``list_courses`` returns only courses
+                             where the user holds it.
+``mod/quiz:manage``          Exporting that quiz's questions and answer key. Required in
+on the quiz                  addition to the course capability, because handing over an
+                             answer key is a broader privilege than editing a gradebook
+                             column. ``list_quizzes`` omits quizzes the caller cannot export.
+===========================  ==================================================================
+
+When a service-account token looks up another user's courses, the token's
+user must hold ``moodle/grade:edit`` in each course as well, so a token never
+reveals a course it could not itself sync.
+
+Grade writes may target a manual grade item or an activity's own gradebook
+column (recorded as an override). Course and category totals are refused.
+Only manual items can be created or edited.
+
+
+How it works
+============
+
+The plugin has two halves.
+
+**Launch.** *Launch PaperScorer* in a course opens PaperScorer with a signed
+payload identifying the user and course. It also carries a per-user key
+derived from ``paperscorer_instance_secret``, which is what lets PaperScorer
+call back into Moodle on that user's behalf.
+
+**API.** PaperScorer's servers read and write Moodle data through Moodle's
+web services, using the token created in `Quick start`_ step 4. The same
+actions are also reachable through the plugin's own signed endpoint,
+``api.php``, for launch-based use. Both transports run the same code and
+return identical payloads.
+
+
+API reference
+=============
+
+Web service functions
+---------------------
+
+Every function is a Moodle web service function on the **PaperScorer**
+service, callable over REST at ``/webservice/rest/server.php``. Each returns a
+single ``payload`` value containing JSON.
+
+==============================================  =============================  ======================================================
+Function                                        Parameters                     Returns
+==============================================  =============================  ======================================================
+``local_paperscorer_list_courses``              ``userid`` (0 = token user)    Courses that user can sync: ``id``, ``label``
+                                                                               (full name), ``name`` (short name), ``idnumber``,
+                                                                               ``visible``.
+``local_paperscorer_get_roster``                ``courseid``                   ``sections`` (always empty) and ``students``: each
+                                                                               with ``student_id``, ``name`` (``Last; First``) and
+                                                                               ``fields`` holding ``lms_user_id``, ``lms_email``,
+                                                                               ``lms_username`` and ``lms_roles``.
+``local_paperscorer_list_grade_items``          ``courseid``                   The manual grade items: ``id``, ``name``,
+                                                                               ``min_mark``, ``max_mark``, ``hidden``.
+``local_paperscorer_create_update_grade_item``  ``courseid``, ``item``         The saved item. ``item`` carries ``name``,
+                                                                               ``min_mark``, ``max_mark`` and an optional ``id``
+                                                                               of an existing manual item to edit.
+``local_paperscorer_update_grades``             ``courseid``, ``itemid``,      One ``{lms_user_id, success}`` per update.
+                                                ``updates``                    ``updates`` is a list of ``{lms_user_id, mark}``.
+``local_paperscorer_get_capabilities``          ``courseid``                   Plugin version, Moodle release, and a ``features``
+                                                                               map (``roster``, ``grades``, ``quiz_export``).
+``local_paperscorer_list_quizzes``              ``courseid``                   Exportable quizzes: ``id``, ``cmid``, ``name``,
+                                                                               ``sumgrades``, ``question_count``, ``grade_item``.
+``local_paperscorer_get_quiz_structure``        ``courseid``, ``quizid``       The normalized quiz (see `Quiz export`_).
+==============================================  =============================  ======================================================
+
+The service also includes the core functions PaperScorer's connect and sync
+flow uses, so one token covers everything:
+
+``core_webservice_get_site_info``, ``core_user_get_users_by_field``,
+``core_enrol_get_users_courses``, ``core_enrol_get_enrolled_users``,
+``core_course_get_courses_by_field``, ``core_course_get_contents``,
+``mod_assign_save_grade``.
+
+Moodle records service function names without checking they exist, so a core
+function that an older release lacks is harmless; it simply cannot be called
+there.
+
+Quiz export
 -----------
 
-Roster and grade actions require ``moodle/grade:edit`` in the course. Quiz
-export additionally requires ``mod/quiz:manage`` on the quiz's module context —
-exporting hands over every correct answer, which is a broader privilege than
-editing a gradebook column, so it is scoped to users who can already see those
-answers in Moodle's own quiz editor.
+Call ``get_capabilities`` first. A plugin too old to export quizzes answers
+``unknown-action``; a Moodle too old to resolve quiz slots reports
+``quiz_export: false``. Either is the signal to hide the import option rather
+than show an error.
 
-``list_courses`` returns the courses in which the *target* user holds
-``moodle/grade:edit``. When the caller is looking up another user (a
-service-account token listing a teacher's courses), the caller must hold
-``moodle/grade:edit`` in each course too, so a token never reveals a course it
-could not itself sync.
+``get_quiz_structure`` returns the quiz, its ``questions``, per-question
+``warnings``, and a ``skipped`` list. ``grade_item`` is the quiz's own
+gradebook column, or ``null`` for an ungraded quiz. Push scores into that
+column with ``update_grades`` rather than creating a second manual item beside
+it, or the course total will count the assessment twice.
 
-Grade writes may target a manual grade item or an activity's own column; course
-and category totals are refused. Only manual items may be created or edited.
-
-Supported question types
-------------------------
+Supported question types:
 
 ===================  ==========================  ===============================
 Moodle qtype         PaperScorer item            Notes
@@ -146,92 +194,47 @@ Moodle qtype         PaperScorer item            Notes
 ``essay``            ``writing_response``        Rubric-scored
 ===================  ==========================  ===============================
 
-Everything else — ``calculated``, ``multianswer`` (cloze), drag-and-drop types,
-and random slots — is reported in ``skipped`` with a reason. A quiz containing
-them still exports the questions that do map.
+Export degrades rather than failing:
 
-Degradation
------------
-
-Export never fails as a whole when part of a quiz cannot be represented on
-paper:
-
-* An unsupported question is skipped; the rest of the quiz still exports.
-* A random slot cannot resolve to a fixed question, so it is skipped with
-  ``random-question``.
-* Where the conversion is lossy, the question carries a ``warnings`` entry:
+* Unsupported types (``calculated``, ``multianswer``, drag-and-drop, and
+  others) and random slots land in ``skipped`` with a reason. The rest of the
+  quiz still exports.
+* Lossy conversions add a ``warnings`` entry to the question:
   ``partial-credit-collapsed``, ``html-stripped``, ``tolerance-dropped``,
-  ``hand-graded``, or ``no-correct-answer``. Review these before printing — a
+  ``hand-graded`` or ``no-correct-answer``. Review these before printing; a
   silently wrong answer key is the worst failure mode on paper.
-* On a Moodle too old to resolve quiz slots, ``get_capabilities`` reports
-  ``quiz_export: false`` rather than erroring.
-
-
-Web service transport
-=====================
-
-This is the transport PaperScorer's servers use. Every action is published as
-a Moodle web service function, so a site that installs this plugin needs
-nothing else: no manually assembled service, and no core function list copied
-from a help page.
-
-* ``local_paperscorer_list_courses`` — takes ``userid`` (0 for the token
-  user); the courses that user can sync, each with ``id``, ``label``
-  (full name), ``name`` (short name), ``idnumber`` and ``visible``
-* ``local_paperscorer_get_roster`` — takes ``courseid``; active enrolments
-  with the configured bubble-sheet ``student_id``, name, and ``lms_user_id``,
-  ``lms_email``, ``lms_username`` and ``lms_roles``
-* ``local_paperscorer_list_grade_items`` — takes ``courseid``; the manual
-  grade items
-* ``local_paperscorer_create_update_grade_item`` — takes ``courseid`` and an
-  ``item`` with ``name``, ``min_mark``, ``max_mark`` and an optional ``id``
-* ``local_paperscorer_update_grades`` — takes ``courseid``, ``itemid`` and
-  ``updates``, a list of ``{lms_user_id, mark}``
-* ``local_paperscorer_get_capabilities`` — takes ``courseid``
-* ``local_paperscorer_list_quizzes`` — takes ``courseid``
-* ``local_paperscorer_get_quiz_structure`` — takes ``courseid`` and ``quizid``
-
-Each returns a single ``payload`` value containing JSON. The payload is
-byte-identical to what ``api.php`` returns for the same action, because both
-transports call the same code.
-
-The pre-built **PaperScorer** service also bundles the core functions
-PaperScorer's connect and sync flow calls (``core_webservice_get_site_info``,
-``core_user_get_users_by_field``, ``core_enrol_get_users_courses``,
-``core_enrol_get_enrolled_users``, ``core_course_get_courses_by_field``,
-``core_course_get_contents`` and ``mod_assign_save_grade``), so one token on
-that service is sufficient. Moodle records service function names without
-checking they exist, so a core function that an older release lacks is
-harmless; it simply cannot be called there.
-
-On this transport the token identifies a real Moodle user, so every permission
-check applies to that user.
 
 Signed transport
 ----------------
 
-``api.php`` exposes the same actions through the launch-based protocol: a
-request carries ``ps_key`` (the Moodle user id), ``ps_signature`` and
-``ps_expires``, signed with the per-user key issued in the launch payload. The
-action names are ``list_courses``, ``get_roster``, ``list_grade_items``,
+``api.php`` exposes the same actions to a caller holding a per-user key from
+the launch payload. A request carries ``ps_key`` (the Moodle user id),
+``ps_signature``, ``ps_expires`` and ``action`` (JSON with a ``name`` and the
+action's parameters). The signature is an HMAC-SHA1 over
+``"<expires>\n<METHOD>\n<action>"``, plus ``"\n<request body>"`` on POST, keyed
+with the per-user key.
+
+Action names match the web service functions without the prefix:
+``list_courses``, ``get_roster``, ``list_grade_items``,
 ``create_update_grade_item``, ``update_grades``, ``get_capabilities``,
-``list_quizzes``, ``get_quiz_structure`` and ``selftest``.
+``list_quizzes``, ``get_quiz_structure``, plus ``selftest``.
 
 
 Development
 ===========
 
-There is no build system and no dependency manager.
+There is no build system and no dependency manager. The repository is the
+deployed artifact.
 
 Development Moodle
 ------------------
 
 ``docker-compose.yml`` stands up a Moodle with this plugin bind-mounted into
-it. Containers follow the PaperScorer naming convention: ``ps-moodle-php``,
-``ps-moodle-database``. The site is at http://localhost:8090.
+it (containers ``ps-moodle-php`` and ``ps-moodle-database``, site at
+http://localhost:8090).
 
-Moodle source is *not* vendored. Clone the version you want into a sibling
-directory — it must live outside this repo, or mounting the repo into it would
+Moodle source is not vendored. Clone the version you want into a sibling
+directory; it must live outside this repo, or mounting the repo into it would
 be a recursive bind mount::
 
     git clone --depth 1 --branch MOODLE_405_STABLE \
@@ -249,7 +252,7 @@ structurally:
 ===================  ==========================  ==============================
 Web root             tree root                   ``public/``
 Plugin path          ``local/paperscorer``       ``public/local/paperscorer``
-Core CLI             ``admin/cli/``              ``admin/cli/`` (unchanged)
+Core CLI             ``admin/cli/``              ``admin/cli/``
 Tool CLI             ``admin/tool/``             ``public/admin/tool/``
 ``config.php``       tree root                   tree root
 Max PHP              8.3                         8.4
@@ -261,21 +264,24 @@ Then::
     docker compose exec ps-moodle-php php admin/cli/install_database.php \
       --agree-license --adminpass=Paperscorer1! --adminemail=dev@example.com \
       --fullname="PaperScorer Dev" --shortname="psdev"
+    docker compose exec ps-moodle-php chown -R www-data:www-data /var/www/moodledata
+
+The last line matters: the CLI install runs as root and leaves the data
+directory unwritable by Apache.
 
 PHP version ceiling
 -------------------
 
 **PHP 8.4 is the maximum**, and it is Moodle's limit, not the plugin's:
 
-* Moodle 4.x refuses to install on PHP 8.4+ (``restrict_php_version_84`` in
-  ``admin/environment.xml``), so it needs 8.3.
-* Moodle 5.x installs and runs fine on PHP 8.5, but its locked dependencies
-  ``ezyang/htmlpurifier`` and ``openspout/openspout`` both cap at 8.4, so
-  Composer refuses and **PHPUnit cannot be installed**.
+* Moodle 4.x refuses to install on PHP 8.4+ (``restrict_php_version_84``), so
+  it needs 8.3.
+* Moodle 5.x runs on PHP 8.5, but its locked dependencies
+  ``ezyang/htmlpurifier`` and ``openspout/openspout`` cap at 8.4, so PHPUnit
+  cannot be installed there.
 
-The plugin's own pure logic *is* verified on PHP 8.5 — ``tests/standalone/run.php``
-runs on whatever PHP is on the host. Raise ``PHP_VERSION`` in ``.env`` once
-Moodle's dependencies allow it.
+The plugin's own pure logic is verified on PHP 8.5 by
+``tests/standalone/run.php``, which uses the host PHP.
 
 Tests
 -----
@@ -289,17 +295,24 @@ and, inside the development Moodle::
     docker compose exec ps-moodle-php php admin/tool/phpunit/cli/init.php
     docker compose exec ps-moodle-php vendor/bin/phpunit --group local_paperscorer
 
-``init.php`` must be re-run after every ``$plugin->version`` bump — the test
+``init.php`` must be re-run after every ``$plugin->version`` bump; the test
 environment records the version it was built against and refuses to run
 otherwise.
 
-Test classes must use the **namespaced** convention: a file ``tests/foo_test.php``
-declares ``namespace local_paperscorer;`` and ``class foo_test extends \advanced_testcase``.
-Moodle 5.x will not discover the older global ``local_paperscorer_foo_testcase``
-naming; the namespaced form works on both 4.x and 5.x.
+Test classes use the namespaced convention: ``tests/foo_test.php`` declares
+``namespace local_paperscorer;`` and ``class foo_test extends
+\advanced_testcase``. Moodle 5.x does not discover the older global naming.
+
+To exercise the web service functions over real HTTP, enable web services and
+REST on the dev site, create a token on the ``local_paperscorer`` service, and
+call ``http://localhost:8090/webservice/rest/server.php`` from the host. Pass
+``-g`` to curl, or it treats the bracketed parameter names (``item[name]``) as
+globs and the request silently fails.
 
 Syntax-check any changed file with ``php -l <file>``. Bump ``$plugin->version``
-in ``version.php`` after any change or Moodle will not re-install the plugin.
+in ``version.php`` after any change, or Moodle will not re-install the plugin.
+Adding or renaming a web service function also needs the bump; Moodle only
+re-reads ``db/services.php`` on upgrade.
 
 Packaging
 ---------
@@ -309,5 +322,6 @@ development files and use ``paperscorer`` as its root directory name::
 
     rm -rf /tmp/pkg && mkdir -p /tmp/pkg/paperscorer
     rsync -a --exclude '.git' --exclude 'docs' --exclude 'docker-compose.yml' \
+      --exclude 'docker' --exclude '.env' --exclude 'CLAUDE.md' \
       ./ /tmp/pkg/paperscorer/
     (cd /tmp/pkg && zip -r paperscorer.zip paperscorer)
